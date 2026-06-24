@@ -13,6 +13,7 @@
   <div class="search-wrap">
     <input type="text" id="search-input" placeholder="검색 — 자연어로 쓰고 Enter: 🤖 AI 검색">
   </div>
+  <button id="btn-summary" class="btn-summary">🤖 요약</button>
   <button id="btn-new" class="btn-primary">+ 새 메모</button>
 </header>
 
@@ -98,6 +99,26 @@
     </div>
   </aside>
 
+</div>
+
+<!-- AI 요약 모달 -->
+<div id="summary-modal" class="hidden">
+  <div class="modal-overlay" id="summary-overlay"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>🤖 AI 메모 요약</span>
+      <button id="btn-close-summary" class="icon-btn">✕</button>
+    </div>
+    <div class="modal-controls">
+      <input type="date" id="summary-date">
+      <button id="btn-today-sum" class="btn-quick">오늘</button>
+      <button id="btn-yesterday-sum" class="btn-quick">어제</button>
+      <button id="btn-run-summary" class="btn-primary">요약하기</button>
+    </div>
+    <div id="summary-result">
+      <p class="hint">날짜를 선택하고 요약하기를 누르세요.</p>
+    </div>
+  </div>
 </div>
 
 <!-- OCR 로딩 오버레이 -->

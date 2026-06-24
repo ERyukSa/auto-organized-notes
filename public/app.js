@@ -22,6 +22,7 @@ class MemoApp {
     this.setupVoice();
     this.setupReminder();
     this.refreshMemoCache();
+    this.setupSummary();
   }
 
   // ── UI 바인딩 ──────────────────────────────────────────────────────────────
@@ -793,6 +794,86 @@ class MemoApp {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  // ── AI 요약 ────────────────────────────────────────────────────────────────
+
+  setupSummary() {
+    const modal   = document.getElementById('summary-modal');
+    const dateEl  = document.getElementById('summary-date');
+    const result  = document.getElementById('summary-result');
+
+    dateEl.value = new Date().toISOString().slice(0, 10);
+
+    document.getElementById('btn-summary').onclick        = () => modal.classList.remove('hidden');
+    document.getElementById('btn-close-summary').onclick  = () => modal.classList.add('hidden');
+    document.getElementById('summary-overlay').onclick    = () => modal.classList.add('hidden');
+
+    document.getElementById('btn-today-sum').onclick = () => {
+      dateEl.value = new Date().toISOString().slice(0, 10);
+    };
+    document.getElementById('btn-yesterday-sum').onclick = () => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      dateEl.value = d.toISOString().slice(0, 10);
+    };
+
+    document.getElementById('btn-run-summary').onclick = async () => {
+      result.innerHTML = '<div class="summary-loading"><div class="spinner"></div><p>AI가 메모를 분석 중...</p></div>';
+      try {
+        const res  = await fetch('/api/memos/summarize', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ date: dateEl.value }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          result.innerHTML = `<p class="hint">${this.esc(data.error)}</p>`;
+          return;
+        }
+        if (!data.memoCount) {
+          result.innerHTML = `<div class="summary-empty">📭 ${this.esc(data.date)}에 작성된 메모가 없어요.</div>`;
+          return;
+        }
+        result.innerHTML = `
+          <div class="summary-meta">${this.esc(data.date)} &nbsp;·&nbsp; 메모 ${data.memoCount}개 분석</div>
+          <div class="summary-content">${this.renderMarkdown(data.summary)}</div>
+        `;
+      } catch {
+        result.innerHTML = '<p class="hint">오류가 발생했습니다. 다시 시도해주세요.</p>';
+      }
+    };
+  }
+
+  renderMarkdown(md) {
+    const lines = md.split('\n');
+    const out   = [];
+    let inList  = false;
+
+    for (const raw of lines) {
+      const safe = raw
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      if (safe.startsWith('## ')) {
+        if (inList) { out.push('</ul>'); inList = false; }
+        out.push(`<h3>${safe.slice(3)}</h3>`);
+      } else if (/^[-•] /.test(safe)) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${safe.slice(2)}</li>`);
+      } else if (safe === '---') {
+        if (inList) { out.push('</ul>'); inList = false; }
+        out.push('<hr>');
+      } else if (safe.trim() === '') {
+        if (inList) { out.push('</ul>'); inList = false; }
+      } else {
+        if (inList) { out.push('</ul>'); inList = false; }
+        out.push(`<p>${safe}</p>`);
+      }
+    }
+    if (inList) out.push('</ul>');
+    return out.join('');
   }
 
   // ── 유틸 ───────────────────────────────────────────────────────────────────

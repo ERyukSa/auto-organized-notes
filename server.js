@@ -1,3 +1,4 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const multer  = require('multer');
 const path    = require('path');
@@ -211,39 +212,89 @@ app.get('/api/memos/:id/similar', (req, res) => {
   res.json(results);
 });
 
+// ── Groq API 공통 호출 ───────────────────────────────────────────────────────
+async function callGemini(prompt, maxTokens = 1200) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY가 설정되지 않았습니다.');
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) console.error('[Groq 오류]', JSON.stringify(data));
+  return data.choices?.[0]?.message?.content || '';
+}
+
 // ── API: AI 검색어 확장 ──────────────────────────────────────────────────────
 app.post('/api/search/expand', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.json({ keywords: [query] });
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.json({ keywords: [query] });
+  if (!process.env.GROQ_API_KEY) return res.json({ keywords: [query] });
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 150,
-        messages: [{
-          role: 'user',
-          content: `검색어를 분석해서 메모 검색에 유용한 관련 키워드를 5개 이내로 추출해줘. JSON 배열로만 답해, 다른 텍스트 없이.\n검색어: "${query}"`,
-        }],
-      }),
-    });
-    const data = await response.json();
-    const text = (data.content?.[0]?.text || '').trim();
-    const match = text.match(/\[[\s\S]*\]/);
+    const text  = await callGemini(
+      `검색어를 분석해서 메모 검색에 유용한 관련 키워드를 5개 이내로 추출해줘. JSON 배열로만 답해, 다른 텍스트 없이.\n검색어: "${query}"`,
+      150
+    );
+    const match    = text.match(/\[[\s\S]*\]/);
     const keywords = match ? JSON.parse(match[0]) : [query];
     res.json({ keywords: Array.isArray(keywords) ? keywords.slice(0, 5) : [query] });
   } catch (e) {
     console.error('AI 검색 확장 오류:', e.message);
     res.json({ keywords: [query] });
+  }
+});
+
+// ── API: AI 메모 요약 ─────────────────────────────────────────────────────────
+app.post('/api/memos/summarize', async (req, res) => {
+  const { date } = req.body;
+  if (!process.env.GROQ_API_KEY) return res.status(400).json({ error: 'GROQ_API_KEY가 설정되지 않았습니다.' });
+
+  const db = readDB();
+  const targetDate = date || new Date().toISOString().slice(0, 10);
+  const memos = db.memos.filter(m => m.createdAt.startsWith(targetDate));
+
+  if (!memos.length) return res.json({ summary: null, memoCount: 0, date: targetDate });
+
+  const memoText = memos.map((m, i) => {
+    const title = m.title ? `제목: ${m.title}\n` : '';
+    return `[메모 ${i + 1}]\n${title}${m.content || '(내용 없음)'}`;
+  }).join('\n\n---\n\n');
+
+  try {
+    const summary = await callGemini(
+      `다음은 ${targetDate}에 작성된 메모 ${memos.length}개입니다. 분석해서 구조화된 요약을 한국어로 작성해주세요. 중구난방이어도 맥락을 파악해서 정리해주세요.
+
+형식을 정확히 따라주세요:
+
+## 📌 핵심 주제
+오늘 다룬 주요 주제들을 간결하게
+
+## 💡 주요 내용
+주제별로 관련 내용을 묶어서 정리
+
+## ✅ 할 일 / 아이디어
+실행 가능한 것들 (없으면 이 섹션 생략)
+
+## 🔗 연결된 생각
+서로 연결되는 내용 (없으면 이 섹션 생략)
+
+---
+${memoText}`
+    );
+    res.json({ summary, memoCount: memos.length, date: targetDate });
+  } catch (e) {
+    console.error('AI 요약 오류:', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 
