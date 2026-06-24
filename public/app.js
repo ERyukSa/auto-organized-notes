@@ -847,17 +847,22 @@ class MemoApp {
           </div>
         `).join('')}
         <div class="org-actions">
-          <button class="btn-primary" id="btn-apply-split">✂️ 분할 실행 (원본 삭제)</button>
+          <button class="btn-primary" id="btn-split-delete">✂️ 분할 + 원본 삭제</button>
+          <button class="tool-btn"    id="btn-split-keep">✂️ 분할 + 원본 유지</button>
         </div>
       `;
-      document.getElementById('btn-apply-split').onclick = () => this.applySplit(splits);
+      document.getElementById('btn-split-delete').onclick = () => this.applySplit(splits, false);
+      document.getElementById('btn-split-keep').onclick   = () => this.applySplit(splits, true);
     } catch {
       el.innerHTML = '<p class="hint">오류가 발생했습니다.</p>';
     }
   }
 
-  async applySplit(splits) {
-    if (!confirm(`메모를 ${splits.length}개로 분할하고 원본을 삭제합니다. 계속할까요?`)) return;
+  async applySplit(splits, keepOriginal) {
+    const msg = keepOriginal
+      ? `메모를 ${splits.length}개로 분할합니다. 원본은 유지됩니다.`
+      : `메모를 ${splits.length}개로 분할하고 원본을 삭제합니다.`;
+    if (!confirm(msg + ' 계속할까요?')) return;
     try {
       const newIds = [];
       for (const s of splits) {
@@ -868,7 +873,7 @@ class MemoApp {
         }).then(r => r.json());
         newIds.push(m.id);
       }
-      await fetch('/api/memos/' + this.memoId, { method: 'DELETE' });
+      if (!keepOriginal) await fetch('/api/memos/' + this.memoId, { method: 'DELETE' });
       document.getElementById('organize-modal').classList.add('hidden');
       await this.loadList();
       if (newIds[0]) this.openMemo(newIds[0]);
