@@ -24,6 +24,7 @@ class MemoApp {
     this.refreshMemoCache();
     this.setupSummary();
     this.setupMemoSummary();
+    this.setupOrganize();
   }
 
   // ── UI 바인딩 ──────────────────────────────────────────────────────────────
@@ -797,6 +798,164 @@ class MemoApp {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  // ── AI 정리 (분할 / 병합) ──────────────────────────────────────────────────
+
+  setupOrganize() {
+    const modal = document.getElementById('organize-modal');
+
+    document.getElementById('btn-organize').onclick = () => {
+      if (!this.memoId) return alert('메모를 먼저 선택하거나 저장하세요.');
+      // 이전 결과 초기화
+      document.getElementById('split-result').innerHTML = '';
+      document.getElementById('merge-similar').innerHTML = '';
+      document.getElementById('merge-preview').innerHTML = '';
+      document.getElementById('merge-btn-wrap').classList.add('hidden');
+      modal.classList.remove('hidden');
+    };
+
+    document.getElementById('btn-close-organize').onclick   = () => modal.classList.add('hidden');
+    document.getElementById('organize-overlay').onclick     = () => modal.classList.add('hidden');
+    document.getElementById('btn-start-split').onclick      = () => this.runSplitAnalysis();
+    document.getElementById('btn-start-merge-search').onclick = () => this.loadSimilarForMerge();
+    document.getElementById('btn-do-merge').onclick         = () => this.runMergeAnalysis();
+  }
+
+  async runSplitAnalysis() {
+    const el = document.getElementById('split-result');
+    el.innerHTML = '<div class="summary-loading"><div class="spinner"></div><p>분석 중...</p></div>';
+
+    try {
+      const res  = await fetch(`/api/memos/${this.memoId}/split-suggest`, { method: 'POST' });
+      const data = await res.json();
+
+      if (data.error) { el.innerHTML = `<p class="hint">${this.esc(data.error)}</p>`; return; }
+
+      if (!data.needsSplit) {
+        el.innerHTML = `<div class="org-ok">✓ ${this.esc(data.reason || '주제가 하나로 잘 정리되어 있어요.')}</div>`;
+        return;
+      }
+
+      const splits = data.splits || [];
+      el.innerHTML = `
+        <div class="org-reason">💡 ${this.esc(data.reason)}</div>
+        ${splits.map((s, i) => `
+          <div class="split-preview">
+            <div class="split-preview-title">메모 ${i + 1}: ${this.esc(s.title || '제목 없음')}</div>
+            <div class="split-preview-content">${this.esc((s.content || '').slice(0, 150))}${(s.content || '').length > 150 ? '…' : ''}</div>
+          </div>
+        `).join('')}
+        <div class="org-actions">
+          <button class="btn-primary" id="btn-apply-split">✂️ 분할 실행 (원본 삭제)</button>
+        </div>
+      `;
+      document.getElementById('btn-apply-split').onclick = () => this.applySplit(splits);
+    } catch {
+      el.innerHTML = '<p class="hint">오류가 발생했습니다.</p>';
+    }
+  }
+
+  async applySplit(splits) {
+    if (!confirm(`메모를 ${splits.length}개로 분할하고 원본을 삭제합니다. 계속할까요?`)) return;
+    try {
+      const newIds = [];
+      for (const s of splits) {
+        const m = await fetch('/api/memos', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: s.title, content: s.content, tags: [...this.currentTags] }),
+        }).then(r => r.json());
+        newIds.push(m.id);
+      }
+      await fetch('/api/memos/' + this.memoId, { method: 'DELETE' });
+      document.getElementById('organize-modal').classList.add('hidden');
+      await this.loadList();
+      if (newIds[0]) this.openMemo(newIds[0]);
+    } catch {
+      alert('분할 중 오류가 발생했습니다.');
+    }
+  }
+
+  async loadSimilarForMerge() {
+    const el      = document.getElementById('merge-similar');
+    const btnWrap = document.getElementById('merge-btn-wrap');
+    const preview = document.getElementById('merge-preview');
+    el.innerHTML  = '<p class="hint">유사 메모 검색 중...</p>';
+    preview.classList.add('hidden');
+    btnWrap.classList.add('hidden');
+
+    try {
+      const similar = await fetch(`/api/memos/${this.memoId}/similar`).then(r => r.json());
+      if (!similar.length) {
+        el.innerHTML = '<p class="hint">유사한 메모가 없어요.</p>';
+        return;
+      }
+      el.innerHTML = similar.map(m => `
+        <label class="merge-item">
+          <input type="checkbox" class="merge-cb" value="${m.id}">
+          <div>
+            <div class="merge-item-title">${this.esc(m.title || '(제목 없음)')}</div>
+            <div class="merge-item-preview">${this.esc(m.content || '')}</div>
+          </div>
+        </label>
+      `).join('');
+      btnWrap.classList.remove('hidden');
+    } catch {
+      el.innerHTML = '<p class="hint">유사 메모를 불러오지 못했습니다.</p>';
+    }
+  }
+
+  async runMergeAnalysis() {
+    const checked = [...document.querySelectorAll('.merge-cb:checked')].map(cb => +cb.value);
+    if (!checked.length) return alert('병합할 메모를 선택하세요.');
+
+    const preview = document.getElementById('merge-preview');
+    preview.classList.remove('hidden');
+    preview.innerHTML = '<div class="summary-loading"><div class="spinner"></div><p>병합 분석 중...</p></div>';
+
+    try {
+      const res  = await fetch('/api/memos/merge-suggest', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [this.memoId, ...checked] }),
+      });
+      const data = await res.json();
+      if (data.error) { preview.innerHTML = `<p class="hint">${this.esc(data.error)}</p>`; return; }
+
+      preview.innerHTML = `
+        <div class="split-preview">
+          <div class="split-preview-title">통합 메모: ${this.esc(data.title || '제목 없음')}</div>
+          <div class="split-preview-content">${this.esc((data.content || '').slice(0, 200))}${(data.content || '').length > 200 ? '…' : ''}</div>
+        </div>
+        <div class="org-actions">
+          <button class="btn-primary" id="btn-apply-merge">🔗 병합 실행 (원본 삭제)</button>
+        </div>
+      `;
+      document.getElementById('btn-apply-merge').onclick = () =>
+        this.applyMerge([this.memoId, ...checked], data);
+    } catch {
+      preview.innerHTML = '<p class="hint">오류가 발생했습니다.</p>';
+    }
+  }
+
+  async applyMerge(ids, merged) {
+    if (!confirm(`메모 ${ids.length}개를 하나로 병합하고 원본을 삭제합니다. 계속할까요?`)) return;
+    try {
+      const newMemo = await fetch('/api/memos', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: merged.title, content: merged.content }),
+      }).then(r => r.json());
+
+      for (const id of ids) await fetch('/api/memos/' + id, { method: 'DELETE' });
+
+      document.getElementById('organize-modal').classList.add('hidden');
+      await this.loadList();
+      this.openMemo(newMemo.id);
+    } catch {
+      alert('병합 중 오류가 발생했습니다.');
+    }
   }
 
   // ── 메모 단건 AI 요약 ──────────────────────────────────────────────────────

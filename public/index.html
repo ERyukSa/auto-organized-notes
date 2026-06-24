@@ -51,6 +51,7 @@
       <div id="meta-row">
         <span id="save-status">새 메모</span>
         <span id="memo-date"></span>
+        <button id="btn-organize" class="btn-memo-sum" title="AI 정리">🔧 정리</button>
         <button id="btn-memo-summary" class="btn-memo-sum" title="AI 요약">✨ 요약</button>
         <button id="btn-pin" class="icon-btn" title="고정">📌</button>
         <button id="btn-delete" class="icon-btn danger" title="삭제">🗑️</button>
@@ -111,6 +112,41 @@
     </div>
   </aside>
 
+</div>
+
+<!-- AI 정리 모달 -->
+<div id="organize-modal" class="hidden">
+  <div class="modal-overlay" id="organize-overlay"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>🔧 AI 정리</span>
+      <button id="btn-close-organize" class="icon-btn">✕</button>
+    </div>
+
+    <div id="organize-body">
+      <!-- 분할 섹션 -->
+      <div class="org-section">
+        <div class="org-sec-title">✂️ 분할 제안</div>
+        <div class="org-actions">
+          <button id="btn-start-split" class="btn-primary">분할 분석 시작</button>
+        </div>
+        <div id="split-result"></div>
+      </div>
+
+      <!-- 병합 섹션 -->
+      <div class="org-section">
+        <div class="org-sec-title">🔗 병합 제안</div>
+        <div class="org-actions">
+          <button id="btn-start-merge-search" class="btn-primary">유사 메모 찾기</button>
+        </div>
+        <div id="merge-similar"></div>
+        <div id="merge-preview"></div>
+        <div id="merge-btn-wrap" class="org-actions hidden">
+          <button id="btn-do-merge" class="btn-primary">선택한 메모와 병합 분석</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- AI 요약 모달 -->

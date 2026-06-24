@@ -290,6 +290,86 @@ ${title}${content}`,
   }
 });
 
+// ── API: 메모 분할 제안 ──────────────────────────────────────────────────────
+app.post('/api/memos/:id/split-suggest', async (req, res) => {
+  if (!process.env.GROQ_API_KEY) return res.status(400).json({ error: 'GROQ_API_KEY가 설정되지 않았습니다.' });
+
+  const db   = readDB();
+  const memo = db.memos.find(m => m.id === +req.params.id);
+  if (!memo) return res.status(404).json({ error: '없음' });
+  if (!(memo.content || '').trim()) return res.json({ needsSplit: false, reason: '내용이 없습니다.', splits: [] });
+
+  try {
+    const raw = await callGemini(
+      `다음 메모를 분석해서 여러 주제가 섞여 있으면 분리해주세요.
+
+규칙:
+- 주제가 명확히 2개 이상일 때만 분리 제안
+- 단순히 길기만 하면 분리하지 않음
+- 각 분리본은 독립적으로 의미있어야 함
+- JSON만 응답, 다른 텍스트 없이
+
+제목: ${memo.title || '없음'}
+내용:
+${memo.content}
+
+응답 형식:
+{
+  "needsSplit": true 또는 false,
+  "reason": "판단 이유 한 줄",
+  "splits": [
+    { "title": "제목1", "content": "내용1" },
+    { "title": "제목2", "content": "내용2" }
+  ]
+}
+needsSplit이 false면 splits는 빈 배열.`,
+      1000
+    );
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return res.json({ needsSplit: false, reason: '분석 실패', splits: [] });
+    res.json(JSON.parse(match[0]));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: 메모 병합 제안 ──────────────────────────────────────────────────────
+app.post('/api/memos/merge-suggest', async (req, res) => {
+  if (!process.env.GROQ_API_KEY) return res.status(400).json({ error: 'GROQ_API_KEY가 설정되지 않았습니다.' });
+
+  const { ids } = req.body;
+  if (!ids || ids.length < 2) return res.status(400).json({ error: '메모를 2개 이상 선택하세요.' });
+
+  const db    = readDB();
+  const memos = ids.map(id => db.memos.find(m => m.id === id)).filter(Boolean);
+  if (memos.length < 2) return res.status(400).json({ error: '유효한 메모가 2개 미만입니다.' });
+
+  const memoText = memos.map((m, i) =>
+    `[메모 ${i + 1}]\n제목: ${m.title || '없음'}\n${m.content || ''}`
+  ).join('\n\n---\n\n');
+
+  try {
+    const raw = await callGemini(
+      `다음 메모들을 하나로 통합해주세요. 중복은 제거하고 자연스럽게 합쳐주세요.
+JSON만 응답, 다른 텍스트 없이.
+
+${memoText}
+
+응답 형식:
+{
+  "title": "통합 메모 제목",
+  "content": "통합된 내용"
+}`,
+      1000
+    );
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(500).json({ error: '병합 분석 실패' });
+    res.json(JSON.parse(match[0]));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── API: AI 메모 요약 ─────────────────────────────────────────────────────────
 app.post('/api/memos/summarize', async (req, res) => {
   const { date } = req.body;
