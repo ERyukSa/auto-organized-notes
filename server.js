@@ -254,6 +254,42 @@ app.post('/api/search/expand', async (req, res) => {
   }
 });
 
+// ── API: 메모 단건 AI 요약 ───────────────────────────────────────────────────
+app.post('/api/memos/:id/summarize', async (req, res) => {
+  if (!process.env.GROQ_API_KEY) return res.status(400).json({ error: 'GROQ_API_KEY가 설정되지 않았습니다.' });
+
+  const db   = readDB();
+  const memo = db.memos.find(m => m.id === +req.params.id);
+  if (!memo) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+
+  const title   = memo.title   ? `제목: ${memo.title}\n` : '';
+  const content = memo.content || '(내용 없음)';
+
+  try {
+    const summary = await callGemini(
+      `다음 메모를 분석해서 핵심만 간결하게 정리해주세요.
+
+형식을 정확히 따라주세요:
+
+## 📝 핵심 요점
+메모의 핵심 내용을 간결하게
+
+## 🏷️ 키워드
+핵심 키워드 5개 이내 (쉼표로 구분)
+
+## ✅ 할 일
+액션 아이템 (없으면 이 섹션 생략)
+
+---
+${title}${content}`,
+      600
+    );
+    res.json({ summary });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── API: AI 메모 요약 ─────────────────────────────────────────────────────────
 app.post('/api/memos/summarize', async (req, res) => {
   const { date } = req.body;

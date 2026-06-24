@@ -51,6 +51,7 @@
       <div id="meta-row">
         <span id="save-status">새 메모</span>
         <span id="memo-date"></span>
+        <button id="btn-memo-summary" class="btn-memo-sum" title="AI 요약">✨ 요약</button>
         <button id="btn-pin" class="icon-btn" title="고정">📌</button>
         <button id="btn-delete" class="icon-btn danger" title="삭제">🗑️</button>
       </div>
@@ -62,6 +63,17 @@
     </div>
 
     <div id="suggestions-bar" class="hidden"></div>
+
+    <div id="memo-summary-bar" class="hidden">
+      <div class="msb-header" id="msb-toggle">
+        <span>✨ AI 요약</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span id="msb-chevron">▼</span>
+          <button id="btn-close-memo-summary" class="icon-btn">✕</button>
+        </div>
+      </div>
+      <div id="memo-summary-content"></div>
+    </div>
 
     <div id="content-scroll">
       <textarea id="memo-content" placeholder="메모를 입력하세요...&#10;사진 드래그&드롭도 가능합니다."></textarea>

@@ -23,6 +23,7 @@ class MemoApp {
     this.setupReminder();
     this.refreshMemoCache();
     this.setupSummary();
+    this.setupMemoSummary();
   }
 
   // ── UI 바인딩 ──────────────────────────────────────────────────────────────
@@ -251,6 +252,7 @@ class MemoApp {
       this.closeLinkAutocomplete();
       this.loadSimilar();
       document.getElementById('suggestions-bar').classList.add('hidden');
+      document.getElementById('memo-summary-bar').classList.add('hidden');
 
       document.querySelectorAll('.memo-item').forEach(el =>
         el.classList.toggle('active', +el.dataset.id === id));
@@ -274,6 +276,7 @@ class MemoApp {
     this.renderImgs();
     this.updateCharCount();
     document.getElementById('suggestions-bar').classList.add('hidden');
+    document.getElementById('memo-summary-bar').classList.add('hidden');
     document.getElementById('checklist-preview').classList.add('hidden');
     document.getElementById('link-preview').classList.add('hidden');
     document.getElementById('link-autocomplete').classList.add('hidden');
@@ -794,6 +797,44 @@ class MemoApp {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  // ── 메모 단건 AI 요약 ──────────────────────────────────────────────────────
+
+  setupMemoSummary() {
+    const bar     = document.getElementById('memo-summary-bar');
+    const content = document.getElementById('memo-summary-content');
+
+    document.getElementById('btn-memo-summary').onclick = async () => {
+      if (!this.memoId) return alert('메모를 먼저 선택하거나 저장하세요.');
+
+      bar.classList.remove('hidden');
+      content.innerHTML = '<div class="summary-loading"><div class="spinner"></div><p>분석 중...</p></div>';
+
+      try {
+        const res  = await fetch(`/api/memos/${this.memoId}/summarize`, { method: 'POST' });
+        const data = await res.json();
+        if (data.error) {
+          content.innerHTML = `<p class="hint">${this.esc(data.error)}</p>`;
+          return;
+        }
+        content.innerHTML = `<div class="summary-content">${this.renderMarkdown(data.summary)}</div>`;
+      } catch {
+        content.innerHTML = '<p class="hint">오류가 발생했습니다.</p>';
+      }
+    };
+
+    document.getElementById('msb-toggle').onclick = e => {
+      if (e.target.closest('#btn-close-memo-summary')) return;
+      const collapsed = bar.classList.toggle('collapsed');
+      document.getElementById('msb-chevron').textContent = collapsed ? '▶' : '▼';
+    };
+
+    document.getElementById('btn-close-memo-summary').onclick = () => {
+      bar.classList.add('hidden');
+      bar.classList.remove('collapsed');
+      document.getElementById('msb-chevron').textContent = '▼';
+    };
   }
 
   // ── AI 요약 ────────────────────────────────────────────────────────────────
