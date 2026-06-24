@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>메모</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="header">
+  <span class="logo">메모</span>
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="검색 — 자연어로 쓰고 Enter: 🤖 AI 검색">
+  </div>
+  <button id="btn-new" class="btn-primary">+ 새 메모</button>
+</header>
+
+<div id="app">
+
+  <!-- ── 사이드바 ───────────────────────────────────────── -->
+  <aside id="sidebar">
+    <div class="sidebar-section">
+      <div class="sec-title" id="today-toggle">
+        <span>오늘의 메모</span>
+        <span id="today-count" class="badge">0</span>
+        <span class="arr">▾</span>
+      </div>
+      <div id="today-list" class="memo-list"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sec-title">
+        <span>전체</span>
+        <span id="all-count" class="badge">0</span>
+      </div>
+      <div id="all-list" class="memo-list"></div>
+    </div>
+
+    <div id="tag-section">
+      <div class="sec-title">태그 필터</div>
+      <div id="tag-filter"></div>
+    </div>
+  </aside>
+
+  <!-- ── 에디터 ──────────────────────────────────────────── -->
+  <main id="editor-pane">
+    <div id="editor-top">
+      <input id="memo-title" type="text" placeholder="제목..." maxlength="200">
+      <div id="meta-row">
+        <span id="save-status">새 메모</span>
+        <span id="memo-date"></span>
+        <button id="btn-pin" class="icon-btn" title="고정">📌</button>
+        <button id="btn-delete" class="icon-btn danger" title="삭제">🗑️</button>
+      </div>
+    </div>
+
+    <div id="tags-row">
+      <div id="tags-display"></div>
+      <input id="tag-input" type="text" placeholder="태그 입력 후 Enter..." maxlength="30">
+    </div>
+
+    <div id="suggestions-bar" class="hidden"></div>
+
+    <div id="content-scroll">
+      <textarea id="memo-content" placeholder="메모를 입력하세요...&#10;사진 드래그&드롭도 가능합니다."></textarea>
+      <div id="checklist-preview" class="hidden"></div>
+      <div id="link-preview" class="hidden"></div>
+      <div id="image-previews"></div>
+    </div>
+
+    <div id="editor-toolbar">
+      <label class="tool-btn" title="사진 추가 (드래그&드롭도 가능)">
+        🖼️ 사진
+        <input type="file" id="image-input" accept="image/*" multiple hidden>
+      </label>
+      <button id="btn-checklist" class="tool-btn">☑️ 체크</button>
+      <button id="btn-voice" class="tool-btn">🎤 음성</button>
+      <span id="voice-indicator"></span>
+      <span style="flex:1"></span>
+      <span id="char-count" class="char-count">0자</span>
+      <div class="export-wrap">
+        <button id="btn-export" class="tool-btn">⬇️ 내보내기</button>
+        <div id="export-menu" class="export-menu hidden">
+          <button id="exp-md">📄 이 메모 → Markdown</button>
+          <button id="exp-json">💾 전체 백업 → JSON</button>
+        </div>
+      </div>
+    </div>
+    <div id="link-autocomplete" class="hidden"></div>
+  </main>
+
+  <!-- ── 연관 메모 패널 ──────────────────────────────────── -->
+  <aside id="similar-panel">
+    <div class="sec-title">연관 메모</div>
+    <div id="similar-list">
+      <p class="hint">메모를 작성하면<br>비슷한 내용의 메모가<br>여기 표시됩니다.</p>
+    </div>
+  </aside>
+
+</div>
+
+<!-- OCR 로딩 오버레이 -->
+<div id="ocr-overlay" class="hidden">
+  <div class="ocr-box">
+    <div class="spinner"></div>
+    <p>사진에서 텍스트 인식 중...</p>
+    <p id="ocr-progress" style="color:#a78bfa;margin-top:8px;font-weight:600"></p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
